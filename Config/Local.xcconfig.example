@@ -1,0 +1,7 @@
+// Copy to Config/Local.xcconfig and fill in. Release builds should use the hosted HTTPS gateway.
+// On a phone during development, use this Mac's address on Wi-Fi, e.g. http:/$()/192.168.1.20:8003
+// (and run the gateway with MOBILE_BIND=0.0.0.0).
+
+FG_API_URL = https:/$()/api.example.com
+FG_APP_KEY = the MOBILE_APP_KEY value
+DEVELOPMENT_TEAM = YOURTEAMID

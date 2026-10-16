@@ -1,0 +1,8 @@
+// Gateway address and app key, read by the app from Info.plist (FGApiURL, FGAppKey).
+// Put real values in Config/Local.xcconfig (not committed). In xcconfig files "//" starts a
+// comment, so write URLs as https:/$()/api.example.com.
+
+FG_API_URL = http:/$()/127.0.0.1:8003
+FG_APP_KEY =
+
+#include? "Local.xcconfig"
