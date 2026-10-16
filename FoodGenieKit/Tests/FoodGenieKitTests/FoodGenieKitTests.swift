@@ -105,10 +105,24 @@ func decode<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
 
     @Test func flags() throws {
         let p = try decode(Product.self, productJSON)
-        #expect(Format.concerns(p) == [.init(label: "Palm oil", tone: .warning),
-                                       .init(label: "May contain natural flavors", tone: .muted)])
+        #expect(Format.concerns(p) == [.init(label: "Palm oil", tone: .warning, severity: .moderate),
+                                       .init(label: "May contain natural flavors", tone: .muted, severity: .moderate)])
         #expect(Format.freeOf(p) == ["No seed oils", "No added sugar", "No artificial colors"])
         #expect(Format.freeOf(p, limit: 1) == ["No seed oils"])
+
+        #expect(Format.severity("seed_oils") == .high)
+        #expect(Format.severity("artificial_colors") == .high)
+        #expect(Format.severity("natural_flavors") == .moderate)
+        #expect(Format.severity("palm_oil") == .moderate)
+        // A high-severity group that only may be present stays moderate (seed oils sort first).
+        let maybe = Product(code: "1", groups: ["seed_oils": "possible", "added_sugars": "contains"])
+        #expect(Format.concerns(maybe).map(\.severity) == [.moderate, .high])
+
+        #expect(Format.worstSeverity(p) == .high)            // tree nuts allergen
+        #expect(Format.worstSeverity(maybe) == .high)        // added sugar
+        #expect(Format.worstSeverity(Product(code: "1", groups: ["natural_flavors": "contains"])) == .moderate)
+        #expect(Format.worstSeverity(Product(code: "1", groups: ["seed_oils": "possible"])) == .moderate)
+        #expect(Format.worstSeverity(Product(code: "1")) == nil)
     }
 
     @Test func rows() {

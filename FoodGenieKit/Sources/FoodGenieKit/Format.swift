@@ -77,19 +77,40 @@ public enum Format {
         return Array(out.prefix(3))
     }
 
+    /// How bad an ingredient group is when present: `high` shows red, `moderate` amber.
+    public enum Severity: Sendable, Equatable { case high, moderate }
+
+    static let highSeverity: Set<String> = ["seed_oils", "hydrogenated_oils", "added_sugars", "artificial_sweeteners",
+                                            "artificial_colors", "synthetic_preservatives"]
+
+    public static func severity(_ group: String) -> Severity {
+        highSeverity.contains(group) ? .high : .moderate
+    }
+
     public struct Flag: Equatable, Sendable {
         public let label: String
         public let tone: Tone
+        public let severity: Severity
     }
 
-    /// Ingredient groups the product contains (or may contain), most important first.
+    /// Ingredient groups the product contains (or may contain), most important first. A group that
+    /// only may be present is a moderate concern whatever the group.
     public static func concerns(_ p: Product) -> [Flag] {
         p.groups.filter { $0.value == "contains" || $0.value == "possible" }
             .sorted { (groupOrder.firstIndex(of: $0.key) ?? -1, $0.key) < (groupOrder.firstIndex(of: $1.key) ?? -1, $1.key) }
             .map { g, status in
-                status == "possible" ? Flag(label: "May contain \(groupLabel(g).lowercased())", tone: .muted)
-                    : Flag(label: groupLabel(g), tone: .warning)
+                status == "possible"
+                    ? Flag(label: "May contain \(groupLabel(g).lowercased())", tone: .muted, severity: .moderate)
+                    : Flag(label: groupLabel(g), tone: .warning, severity: severity(g))
             }
+    }
+
+    /// The loudest thing to flag on a tile: `high` for a serious ingredient group or an allergen,
+    /// `moderate` for moderate or possible groups, nil when there's nothing to say.
+    public static func worstSeverity(_ p: Product) -> Severity? {
+        let flags = concerns(p)
+        if !p.allergens.isEmpty || flags.contains(where: { $0.severity == .high }) { return .high }
+        return flags.isEmpty ? nil : .moderate
     }
 
     public static func freeOf(_ p: Product, limit: Int = 4) -> [String] {

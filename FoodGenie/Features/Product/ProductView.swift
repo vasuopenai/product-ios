@@ -110,13 +110,16 @@ struct ProductView: View {
                 .padding(.top, Spacing.m)
             }
 
-            FlowLayout {
-                NutriScoreBadge(grade: p.nutriscore, showLabel: true)
-                Text(Format.nutriscoreCaption(p)).font(.footnote).foregroundStyle(Theme.textSecondary)
-                if let category = p.category { Chip(label: category) }
-                if p.origin == "scan" { Chip(label: "Added from a scan", icon: "barcode.viewfinder", style: .outlined) }
+            NutriScoreCircle(grade: p.nutriscore, caption: Format.nutriscoreCaption(p))
+                .padding(.top, Spacing.l)
+
+            if p.category != nil || p.origin == "scan" {
+                FlowLayout {
+                    if let category = p.category { Chip(label: category) }
+                    if p.origin == "scan" { Chip(label: "Added from a scan", icon: "barcode.viewfinder", style: .outlined) }
+                }
+                .padding(.top, Spacing.m)
             }
-            .padding(.top, Spacing.m)
 
             storeInfo(p, sold: sold, badge: badge)
             sections(p)
@@ -198,7 +201,7 @@ struct ProductView: View {
         if !p.allergens.isEmpty {
             SectionTitle("Allergens")
             FlowLayout {
-                ForEach(p.allergens, id: \.self) { Chip(label: Format.tagLabel($0), icon: "exclamationmark") }
+                ForEach(p.allergens, id: \.self) { Chip(label: Format.tagLabel($0), icon: "exclamationmark", tint: Theme.bad) }
             }
         }
 

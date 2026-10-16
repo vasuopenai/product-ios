@@ -59,6 +59,23 @@ extension View {
     func card(padded: Bool = true) -> some View {
         modifier(CardBackground(padded: padded))
     }
+
+    /// A product tile: one surface with the photo flush to the top, a hairline border and a soft shadow.
+    func tileCard() -> some View {
+        modifier(TileCard())
+    }
+}
+
+struct TileCard: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(Theme.card)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: Radius.xl, style: .continuous).strokeBorder(Theme.border, lineWidth: 0.5)
+            }
+            .shadow(color: Theme.shadow, radius: 10, y: 4)
+    }
 }
 
 /// Presses shrink a little, like the system's own cards.
@@ -157,17 +174,37 @@ struct Chip: View {
     let label: String
     var icon: String?
     var style: Style = .filled
+    /// Gives the icon a meaning color (green, amber, red); a filled chip's background takes a soft wash of it.
+    var tint: Color?
 
     var body: some View {
         HStack(spacing: Spacing.xs) {
-            if let icon { Image(systemName: icon).font(.caption2.weight(.bold)) }
+            if let icon {
+                Image(systemName: icon).font(.caption2.weight(.bold)).foregroundStyle(tint ?? labelColor)
+            }
             Text(label).font(.footnote.weight(.medium)).lineLimit(1)
         }
-        .foregroundStyle(style == .inverted ? Theme.inverse : style == .outlined ? Theme.textSecondary : Theme.text)
+        .foregroundStyle(labelColor)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(style == .inverted ? Theme.text : style == .filled ? Theme.surfaceStrong : .clear, in: Capsule())
+        .background(background, in: Capsule())
         .overlay { if style == .outlined { Capsule().strokeBorder(Theme.border) } }
+    }
+
+    private var labelColor: Color {
+        switch style {
+        case .inverted: Theme.inverse
+        case .outlined: Theme.textSecondary
+        case .filled: Theme.text
+        }
+    }
+
+    private var background: Color {
+        switch style {
+        case .inverted: Theme.text
+        case .outlined: .clear
+        case .filled: tint.map { $0.opacity(0.14) } ?? Theme.surfaceStrong
+        }
     }
 }
 

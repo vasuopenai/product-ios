@@ -19,7 +19,9 @@ Native iPhone and iPad app (SwiftUI, iOS 17+) for the food product backend in
   per 100 g, ingredients, allergens, labels, and a link to the source.
 
 Design: black and white with quiet greys, SF Pro, native tab bar, navigation and controls,
-light and dark mode. The colors are in `FoodGenie/Design/Theme.swift`.
+light and dark mode. Color carries meaning only: Nutri-Score grades in the official palette,
+and green / amber / red on ingredient and allergen chips. The colors are in
+`FoodGenie/Design/Theme.swift`.
 
 ## Layout
 

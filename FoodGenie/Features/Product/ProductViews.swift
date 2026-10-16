@@ -20,6 +20,8 @@ struct ProductPhoto: View {
     let url: String?
     var iconSize: CGFloat = 24
     var placeholder: String?
+    /// Room between the photo and its edges.
+    var inset: CGFloat = 6
 
     var body: some View {
         ZStack {
@@ -27,7 +29,7 @@ struct ProductPhoto: View {
             if let url, let parsed = URL(string: url) {
                 AsyncImage(url: parsed, transaction: Transaction(animation: .easeOut(duration: 0.2))) { phase in
                     switch phase {
-                    case .success(let image): image.resizable().scaledToFit().padding(6)
+                    case .success(let image): image.resizable().scaledToFit().padding(inset)
                     case .failure: missing
                     default: Rectangle().fill(Theme.surfaceStrong)
                     }
@@ -50,7 +52,7 @@ struct ProductPhoto: View {
 }
 
 /// The Nutri-Score letter, or "NA" when neither Open Food Facts nor our calculation has one.
-/// Monochrome: the letter carries the grade, a filled badge means there is one.
+/// Colored with the official Nutri-Score palette, dark green for A through red for E.
 struct NutriScoreBadge: View {
     let grade: String?
     var showLabel = false
@@ -63,13 +65,40 @@ struct NutriScoreBadge: View {
             }
             Text(letter ?? "NA").font(.caption.weight(.heavy))
         }
-        .foregroundStyle(letter == nil ? Theme.textSecondary : Theme.inverse)
+        .foregroundStyle(letter == nil ? Theme.textSecondary : Theme.nutriscoreText(letter))
         .padding(.horizontal, 7)
         .padding(.vertical, 3)
         .frame(minWidth: 24)
-        .background(letter == nil ? Theme.surfaceStrong : Theme.text, in: Capsule())
+        .background(Theme.nutriscore(letter) ?? Theme.surfaceStrong, in: Capsule())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(letter.map { "Nutri-Score \($0)" } ?? "Nutri-Score not available")
+    }
+}
+
+/// The product page's Nutri-Score: a circle filled with the grade's color, the letter in the
+/// center, and beside it the label and where the grade came from.
+struct NutriScoreCircle: View {
+    let grade: String?
+    let caption: String
+
+    var body: some View {
+        let letter = Format.nutriscoreGrade(grade)
+        HStack(spacing: Spacing.m) {
+            Text(letter ?? "NA")
+                .font(letter == nil ? .footnote.weight(.heavy) : .title2.weight(.heavy))
+                .foregroundStyle(letter == nil ? Theme.textSecondary : Theme.nutriscoreText(letter))
+                .frame(width: 52, height: 52)
+                .background(Theme.nutriscore(letter) ?? Theme.surfaceStrong, in: Circle())
+            VStack(alignment: .leading, spacing: 2) {
+                Text("NUTRI-SCORE")
+                    .font(.caption2.weight(.bold)).tracking(0.5)
+                    .foregroundStyle(Theme.textSecondary)
+                Text(caption).font(.footnote).foregroundStyle(Theme.text)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(letter.map { "Nutri-Score \($0), \(caption)" } ?? "Nutri-Score not available, \(caption)")
     }
 }
 
@@ -93,7 +122,8 @@ struct StoreBadge: View {
     }
 }
 
-/// The "what's inside" chips: flagged ingredient groups, then the good news.
+/// The "what's inside" chips: flagged ingredient groups (red for the worst, amber for moderate
+/// ones and "may contain"), then the good news with green checkmarks.
 struct IngredientChips: View {
     let product: Product
     var flagLimit = Int.max
@@ -106,10 +136,11 @@ struct IngredientChips: View {
             FlowLayout {
                 ForEach(flags, id: \.label) { f in
                     Chip(label: f.label, icon: f.tone == .warning ? "exclamationmark" : "questionmark",
-                         style: f.tone == .warning ? .filled : .outlined)
+                         style: f.tone == .warning ? .filled : .outlined,
+                         tint: f.severity == .high ? Theme.bad : Theme.caution)
                 }
                 ForEach(good, id: \.self) { g in
-                    Chip(label: g, icon: "checkmark", style: .outlined)
+                    Chip(label: g, icon: "checkmark", style: .outlined, tint: Theme.good)
                 }
             }
         }
@@ -158,36 +189,96 @@ struct ProductCard: View {
     }
 }
 
-/// A product in the Ask grid: photo, name, price and aisle.
+/// The small grey "i" on a tile's photo, shown only when the product has flagged ingredient
+/// groups or allergens. Tapping shows the chips; the color is left to them.
+struct ConcernsInfoButton: View {
+    let product: Product
+    @State private var showing = false
+
+    var body: some View {
+        if let severity = Format.worstSeverity(product) {
+            Button {
+                Haptics.tap()
+                showing = true
+            } label: {
+                // The classic info glyph: a serif italic "i", quiet but unmistakable.
+                Text("i")
+                    .font(.system(size: 19, weight: .semibold, design: .serif))
+                    .italic()
+                    .foregroundStyle(Theme.textTertiary)
+                    .frame(width: 36, height: 36)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(severity == .high ? "Serious concerns, show details" : "Some concerns, show details")
+            .popover(isPresented: $showing, arrowEdge: .top) {
+                ConcernsPopover(product: product)
+                    .presentationCompactAdaptation(.popover)
+            }
+        }
+    }
+}
+
+/// What the "i" opens: the flagged ingredient groups and allergens, as on the product page.
+struct ConcernsPopover: View {
+    let product: Product
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.m) {
+            Text("Heads up").font(.headline).foregroundStyle(Theme.text)
+            if !Format.concerns(product).isEmpty {
+                IngredientChips(product: product, goodLimit: 0)
+            }
+            if !product.allergens.isEmpty {
+                Text("ALLERGENS")
+                    .font(.caption2.weight(.bold)).tracking(0.5)
+                    .foregroundStyle(Theme.textSecondary)
+                    .padding(.top, Spacing.xs)
+                FlowLayout {
+                    ForEach(product.allergens, id: \.self) {
+                        Chip(label: Format.tagLabel($0), icon: "exclamationmark", tint: Theme.bad)
+                    }
+                }
+            }
+        }
+        .padding(Spacing.l)
+        .frame(width: 280, alignment: .leading)
+        .presentationBackground(Theme.background)
+    }
+}
+
+/// A product in the Ask grid: a square photo flush with the top of the card, then brand and
+/// Nutri-Score, a two-line name (space reserved so price rows line up), price and aisle.
 struct ProductTile: View {
     let product: Product
 
     var body: some View {
         NavigationLink(value: ProductRoute(code: product.code)) {
-            VStack(alignment: .leading, spacing: 6) {
-                ProductPhoto(url: product.displayImageURL, iconSize: 24)
-                    .frame(height: 120)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
-                    .overlay(alignment: .topTrailing) {
-                        NutriScoreBadge(grade: product.nutriscore).padding(6)
+            VStack(alignment: .leading, spacing: 0) {
+                ProductPhoto(url: product.displayImageURL, iconSize: 24, inset: 14)
+                    .aspectRatio(1, contentMode: .fit)
+                    .overlay(alignment: .topTrailing) { ConcernsInfoButton(product: product) }
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .center, spacing: 6) {
+                        if let brand = product.brand, !brand.isEmpty {
+                            Text(brand.uppercased())
+                                .font(.caption2.weight(.semibold)).tracking(0.6)
+                                .foregroundStyle(Theme.textTertiary).lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                        NutriScoreBadge(grade: product.nutriscore)
                     }
-                    .padding(.bottom, 2)
-                if let brand = product.brand, !brand.isEmpty {
-                    Text(brand.uppercased())
-                        .font(.caption2.weight(.semibold)).tracking(0.4)
-                        .foregroundStyle(Theme.textSecondary).lineLimit(1)
+                    Text(product.name ?? "Unnamed product")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Theme.text)
+                        .lineLimit(2, reservesSpace: true)
+                        .multilineTextAlignment(.leading)
+                    price.padding(.top, 4)
                 }
-                Text(product.name ?? "Unnamed product")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.text)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                Spacer(minLength: 0)
-                price
+                .padding(Spacing.m)
             }
-            .padding(Spacing.m)
-            .frame(maxWidth: .infinity, minHeight: 250, alignment: .topLeading)
-            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Radius.l, style: .continuous))
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .tileCard()
         }
         .buttonStyle(PressStyle())
         .simultaneousGesture(TapGesture().onEnded { Haptics.tap() })
@@ -206,7 +297,7 @@ struct ProductTile: View {
                                 .font(.caption2.weight(.medium)).lineLimit(1)
                                 .foregroundStyle(Theme.textSecondary)
                                 .padding(.horizontal, 7).padding(.vertical, 3)
-                                .background(Theme.background, in: Capsule())
+                                .overlay { Capsule().strokeBorder(Theme.border) }
                         }
                     }
                     if badge.tone == .warning {
@@ -227,29 +318,29 @@ struct RecentScanTile: View {
 
     var body: some View {
         NavigationLink(value: ProductRoute(code: scan.code)) {
-            VStack(alignment: .leading, spacing: 4) {
-                ProductPhoto(url: scan.imageURL, iconSize: 20)
-                    .frame(height: 88)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.s, style: .continuous))
-                    .overlay(alignment: .topTrailing) {
-                        NutriScoreBadge(grade: scan.nutriscore).padding(4)
+            VStack(alignment: .leading, spacing: 0) {
+                ProductPhoto(url: scan.imageURL, iconSize: 20, inset: 10)
+                    .frame(width: 132, height: 132)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 4) {
+                        if let brand = scan.brand, !brand.isEmpty {
+                            Text(brand.uppercased())
+                                .font(.caption2.weight(.semibold)).tracking(0.6)
+                                .foregroundStyle(Theme.textTertiary).lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                        NutriScoreBadge(grade: scan.nutriscore)
                     }
-                    .padding(.bottom, 4)
-                if let brand = scan.brand, !brand.isEmpty {
-                    Text(brand.uppercased())
-                        .font(.caption2.weight(.semibold)).tracking(0.4)
-                        .foregroundStyle(Theme.textSecondary).lineLimit(1)
+                    Text(scan.name ?? "Unnamed product")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(Theme.text)
+                        .lineLimit(2, reservesSpace: true)
+                        .multilineTextAlignment(.leading)
                 }
-                Text(scan.name ?? "Unnamed product")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Theme.text)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                Spacer(minLength: 0)
+                .padding(Spacing.s)
             }
-            .padding(Spacing.s)
-            .frame(width: 140, height: 176, alignment: .topLeading)
-            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+            .frame(width: 132, alignment: .topLeading)
+            .tileCard()
         }
         .buttonStyle(PressStyle())
         .simultaneousGesture(TapGesture().onEnded { Haptics.tap() })
