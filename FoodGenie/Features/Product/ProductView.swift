@@ -34,7 +34,21 @@ struct ProductView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Theme.background, for: .navigationBar)
+        .toolbar {
+            if let product {
+                ToolbarItem(placement: .topBarTrailing) {
+                    ShareLink(item: Format.shareText(product, store: store.store.map { Format.storeShortName($0.name) }),
+                              subject: Text(product.name ?? "Product"))
+                }
+            }
+        }
         .task(id: key) { await load() }
+    }
+
+    /// The product on screen, once it has loaded for the current store.
+    private var product: Product? {
+        if loaded?.key == key, case .success(let p)? = loaded?.result { return p }
+        return nil
     }
 
     private func load() async {

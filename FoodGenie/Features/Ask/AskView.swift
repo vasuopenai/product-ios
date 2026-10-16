@@ -75,6 +75,7 @@ final class AskModel {
 
 struct AskView: View {
     @Environment(StoreModel.self) private var store
+    @Environment(History.self) private var history
     @Environment(\.openURL) private var openURL
     @State private var model = AskModel(api: AppConfig.api)
     @State private var voice = VoiceInput()
@@ -119,6 +120,7 @@ struct AskView: View {
 
     private func ask(_ text: String) {
         focused = false
+        history.addQuestion(text)
         model.ask(text, locationId: store.store?.locationId)
     }
 
@@ -174,6 +176,39 @@ struct AskView: View {
     // MARK: States
 
     @ViewBuilder private var idle: some View {
+        if !history.questions.isEmpty {
+            SectionTitle(title: "Recent") { clearButton { history.clearQuestions() } }
+            FlowLayout {
+                ForEach(history.questions.prefix(8), id: \.self) { q in
+                    Button {
+                        Haptics.tap()
+                        ask(q)
+                    } label: {
+                        Chip(label: q, icon: "clock")
+                    }
+                    .buttonStyle(PressStyle())
+                    .contextMenu {
+                        Button("Remove", systemImage: "trash", role: .destructive) { history.removeQuestion(q) }
+                    }
+                }
+            }
+        }
+
+        if !history.scans.isEmpty {
+            SectionTitle(title: "Recently scanned") { clearButton { history.clearScans() } }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Spacing.s) {
+                    ForEach(history.scans) { scan in
+                        RecentScanTile(scan: scan)
+                            .contextMenu {
+                                Button("Remove", systemImage: "trash", role: .destructive) { history.removeScan(scan.code) }
+                            }
+                    }
+                }
+            }
+            .scrollClipDisabled()
+        }
+
         SectionTitle("Try asking")
         VStack(spacing: Spacing.s) {
             ForEach(suggestions, id: \.self) { s in
@@ -197,6 +232,16 @@ struct AskView: View {
             Text(store.noStores ? "No supported store nearby, so results show without prices and aisles."
                  : "Choose your store to see shelf prices and aisles. Optional: products show either way.")
                 .font(.footnote).foregroundStyle(Theme.textSecondary).padding(.top, Spacing.l)
+        }
+    }
+
+    /// The small "Clear" at the right of a history section title.
+    private func clearButton(_ action: @escaping () -> Void) -> some View {
+        Button {
+            Haptics.tap()
+            action()
+        } label: {
+            Text("Clear").font(.footnote.weight(.semibold))
         }
     }
 

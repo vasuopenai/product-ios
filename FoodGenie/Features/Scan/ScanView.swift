@@ -12,13 +12,23 @@ final class ScanModel {
         case loading(String)
         case result(String, ScanResult)
         case failed(String, String)
+
+        var code: String? {
+            switch self {
+            case .ready: nil
+            case .loading(let code), .result(let code, _), .failed(let code, _): code
+            }
+        }
     }
 
     private(set) var phase: Phase = .ready
     @ObservationIgnored private var work: Task<Void, Never>?
+    /// The barcode whose result was just dismissed, and when.
+    @ObservationIgnored private var dismissed: (code: String, at: Date)?
     @ObservationIgnored private let api: APIClient
     private static let pollEvery: Duration = .milliseconds(2500)
     private static let pollFor: TimeInterval = 90
+    private static let repeatAfter: TimeInterval = 3
 
     init(api: APIClient) {
         self.api = api
@@ -31,11 +41,16 @@ final class ScanModel {
 
     func reset() {
         work?.cancel()
+        dismissed = phase.code.map { ($0, .now) }
         phase = .ready
     }
 
-    func lookUp(_ code: String, store: StoreModel) {
+    /// Looks up a barcode and remembers what it finds. After "Scan another" the camera still sees
+    /// the same barcode, so a repeat within a few seconds is ignored unless the shopper typed it.
+    func lookUp(_ code: String, store: StoreModel, history: History, allowRepeat: Bool = false) {
         guard isReady else { return }
+        if !allowRepeat, let dismissed, dismissed.code == code,
+           Date.now.timeIntervalSince(dismissed.at) < Self.repeatAfter { return }
         phase = .loading(code)
         let locationId = store.store?.locationId
         let coordinate = store.coordinate
@@ -46,7 +61,8 @@ final class ScanModel {
                 guard !Task.isCancelled else { return }
                 if result.status == .found { Haptics.success() } else { Haptics.warning() }
                 phase = .result(code, result)
-                if result.status == .researching { await poll(code, locationId: locationId) }
+                record(result, in: history)
+                if result.status == .researching { await poll(code, locationId: locationId, history: history) }
             } catch is CancellationError {
             } catch {
                 if !Task.isCancelled { phase = .failed(code, error.userMessage) }
@@ -54,7 +70,12 @@ final class ScanModel {
         }
     }
 
-    private func poll(_ code: String, locationId: String?) async {
+    /// Known products and online previews both open a product page, so both go in the history.
+    private func record(_ result: ScanResult, in history: History) {
+        if let product = result.product ?? result.staged?.product { history.addScan(product) }
+    }
+
+    private func poll(_ code: String, locationId: String?, history: History) async {
         let started = Date.now
         while Date.now.timeIntervalSince(started) < Self.pollFor {
             do {
@@ -62,6 +83,7 @@ final class ScanModel {
                 let result = try await api.scanStatus(code, locationId: locationId)
                 if result.status != .researching {
                     phase = .result(code, result)
+                    record(result, in: history)
                     return
                 }
             } catch is CancellationError {
@@ -75,6 +97,7 @@ final class ScanModel {
 
 struct ScanView: View {
     @Environment(StoreModel.self) private var store
+    @Environment(History.self) private var history
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
     @State private var model = ScanModel(api: AppConfig.api)
@@ -109,7 +132,7 @@ struct ScanView: View {
         .sheet(isPresented: $typing) {
             TypeBarcodeSheet { code in
                 model.reset()
-                model.lookUp(code, store: store)
+                model.lookUp(code, store: store, history: history, allowRepeat: true)
             }
         }
     }
@@ -119,7 +142,7 @@ struct ScanView: View {
     private var cameraLayer: some View {
         ZStack {
             BarcodeScanner(running: visible && scenePhase == .active, torch: torch) { code in
-                if model.isReady { model.lookUp(code, store: store) }
+                if model.isReady { model.lookUp(code, store: store, history: history) }
             }
             .ignoresSafeArea()
 

@@ -6,10 +6,13 @@ Native iPhone and iPad app (SwiftUI, iOS 17+) for the food product backend in
 
 - **Ask**: a question, typed or spoken (Apple speech recognition, on device when supported).
   The answer comes back as a grid of products with the price, aisle and stock at your store;
-  "From the web" is searched at the same time. Filters: At my store · All · Web.
+  "From the web" is searched at the same time. Filters: At my store · All · Web. The home
+  shows recent questions and recently scanned products (kept on the phone; long-press to
+  remove, or Clear).
 - **Scan**: camera barcode scanner (UPC-A/E, EAN-13/8) with torch and haptics, or type a
   barcode. Known products open right away. Unknown ones are researched on the server while
-  the app polls, and it shows what was found.
+  the app polls, and it shows what was found. After "Scan another", the same barcode is
+  ignored for a few seconds so the item still in frame doesn't reopen.
 - **Store**: finds the Kroger-family store you're in (within ~200 m) or near you, and lets you
   pick any nearby store. Location is used only for this.
 - **Product**: photo, price and aisle, Nutri-Score, what's inside, nutrition per serving or
@@ -24,7 +27,7 @@ light and dark mode. The colors are in `FoodGenie/Design/Theme.swift`.
 FoodGenie.xcodeproj      app target (the FoodGenie/ folder is synced: new files are picked up)
 FoodGenie/
   App/                   entry point, tabs, navigation, gateway config
-  Core/                  StoreModel (location + store), VoiceInput (speech)
+  Core/                  StoreModel (location + store), VoiceInput (speech), History (recents)
   Design/                Theme, shared components
   Features/              Ask, Scan, Store, Product screens
 FoodGenieKit/            Swift package with no UI: APIClient, models, formatting, plus tests

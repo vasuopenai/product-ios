@@ -221,6 +221,41 @@ struct ProductTile: View {
     }
 }
 
+/// A recently scanned product, in the horizontal strip on the Ask home.
+struct RecentScanTile: View {
+    let scan: RecentScan
+
+    var body: some View {
+        NavigationLink(value: ProductRoute(code: scan.code)) {
+            VStack(alignment: .leading, spacing: 4) {
+                ProductPhoto(url: scan.imageURL, iconSize: 20)
+                    .frame(height: 88)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.s, style: .continuous))
+                    .overlay(alignment: .topTrailing) {
+                        NutriScoreBadge(grade: scan.nutriscore).padding(4)
+                    }
+                    .padding(.bottom, 4)
+                if let brand = scan.brand, !brand.isEmpty {
+                    Text(brand.uppercased())
+                        .font(.caption2.weight(.semibold)).tracking(0.4)
+                        .foregroundStyle(Theme.textSecondary).lineLimit(1)
+                }
+                Text(scan.name ?? "Unnamed product")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+            }
+            .padding(Spacing.s)
+            .frame(width: 140, height: 176, alignment: .topLeading)
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+        }
+        .buttonStyle(PressStyle())
+        .simultaneousGesture(TapGesture().onEnded { Haptics.tap() })
+    }
+}
+
 /// A product found on the web, opened in the in-app browser.
 struct WebCard: View {
     let item: WebProduct

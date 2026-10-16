@@ -133,6 +133,17 @@ func decode<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
         #expect(Format.sourceLinkLabel("open_food_facts") == "View on Open Food Facts")
     }
 
+    @Test func share() throws {
+        let p = try decode(Product.self, productJSON)
+        #expect(Format.shareText(p, store: "Kroger · Main St") == """
+            Protein Bar by Acme
+            $2.50 sale at Kroger · Main St · Aisle 12 · Nutri-Score B
+            Barcode 0049000028911
+            https://fdc.nal.usda.gov/food/123
+            """)
+        #expect(Format.shareText(Product(code: "1"), store: nil) == "A product\nBarcode 1")
+    }
+
     @Test func greeting() throws {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = try #require(TimeZone(identifier: "UTC"))
@@ -140,6 +151,20 @@ func decode<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
         #expect(Format.greeting(at(9), calendar: cal) == "Good morning")
         #expect(Format.greeting(at(13), calendar: cal) == "Good afternoon")
         #expect(Format.greeting(at(20), calendar: cal) == "Good evening")
+    }
+}
+
+@Suite struct History {
+    @Test func recents() throws {
+        #expect(Recents.adding("b", to: ["a", "b", "c"], by: { $0 }) == ["b", "a", "c"])
+        #expect(Recents.adding("z", to: ["a", "b"], by: { $0 }, limit: 2) == ["z", "a"])
+        #expect(Recents.adding("A", to: ["a"], by: { $0.lowercased() }) == ["A"])
+
+        let scan = RecentScan(try decode(Product.self, productJSON))
+        #expect(scan.imageURL == "https://img/k.jpg")
+        #expect(scan.nutriscore == "B")
+        let again = try JSONDecoder().decode(RecentScan.self, from: JSONEncoder().encode(scan))
+        #expect(again == scan)
     }
 }
 

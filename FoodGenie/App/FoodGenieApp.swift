@@ -4,6 +4,7 @@ import SwiftUI
 struct FoodGenieApp: App {
     @State private var router = AppRouter()
     @State private var store = StoreModel(api: AppConfig.api)
+    @State private var history = History()
 
     init() {
         // Product photos repeat across Ask, Scan and Product pages.
@@ -15,6 +16,7 @@ struct FoodGenieApp: App {
             RootView()
                 .environment(router)
                 .environment(store)
+                .environment(history)
                 .tint(Theme.text)
                 .task { await store.start() }
         }

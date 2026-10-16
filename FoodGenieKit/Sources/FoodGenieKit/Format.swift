@@ -167,4 +167,19 @@ public enum Format {
         guard nutriscoreGrade(p.nutriscore) != nil else { return p.nutriscoreNote ?? "Not enough nutrition data" }
         return p.nutriscoreSource == "off" ? "Open Food Facts" : "Our estimate"
     }
+
+    /// The product page's share text: name and brand, price at the store, Nutri-Score, barcode, source link.
+    public static func shareText(_ p: Product, store: String?) -> String {
+        var title = p.name ?? "A product"
+        if let brand = p.brand, !brand.isEmpty { title += " by \(brand)" }
+        var facts: [String] = []
+        if let k = p.kroger, k.sold, let badge = krogerBadge(k) {
+            facts.append(store.map { "\(badge.label) at \($0)" } ?? badge.label)
+            if let aisle = k.aisle { facts.append(titleCase(aisle)) }
+        }
+        if let grade = nutriscoreGrade(p.nutriscore) { facts.append("Nutri-Score \(grade)") }
+        let lines: [String?] = [title, facts.isEmpty ? nil : facts.joined(separator: " · "), "Barcode \(p.code)",
+                                Links.webURL(p.url)?.absoluteString]
+        return lines.compactMap { $0 }.joined(separator: "\n")
+    }
 }
